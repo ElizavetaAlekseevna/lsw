@@ -42,14 +42,18 @@ fn sender(&mut self, address: String, msg: String , socket: &UdpSocket) {
     socket.send_to(msg.as_bytes(), address);
 }
 
+fn send_player_list(&mut self, socket: &UdpSocket) {
+    let pl = self.player_list.clone();
+    let pl_str : Vec<String> = pl.values().map(|p| format!("{}", p)).collect();
+    self.broadcast(format!("update {:?}", pl_str) , socket);
+}
+
 fn connect_player(&mut self, address: String, socket: &UdpSocket) {
     let id = self.player_list.len() + 1;
     let player = Player::new(id, Point2::new(100,100));
     self.player_list.insert(address.clone(), player);
-    self.sender(address, "connect ".to_string() + id.to_string().as_str() , socket);
-    let pl = self.player_list.clone();
-    let pl_str : Vec<String> = pl.values().map(|p| format!("{}", p)).collect();
-    self.broadcast("update ".to_string() + format!("{:?}", pl_str).as_str() , socket);
+    self.sender(address, format!("connect {}", id), socket);
+    self.send_player_list(socket);
 }
 
 fn update_player(&mut self, address: String, args: Vec<String>, socket: &UdpSocket) {
@@ -57,9 +61,12 @@ fn update_player(&mut self, address: String, args: Vec<String>, socket: &UdpSock
         "move" => self.player_list.get_mut(&address).unwrap().move_player(args[0].clone()),
         _ => println!("Неверный update"),
     }
-    let pl = self.player_list.clone();
-    let pl_str : Vec<String> = pl.values().map(|p| format!("{}", p)).collect();
-    self.broadcast("update ".to_string() + format!("{:?}", pl_str).as_str(), socket);
+    self.send_player_list(socket);
+}
+
+fn disconnect_player(&mut self, address: String, socket: &UdpSocket) {
+    self.player_list.remove(&address);
+    self.send_player_list(socket);
 }
 
 pub fn run(&mut self) {
@@ -74,6 +81,7 @@ fn msg_handler(&mut self, socket: &UdpSocket, msg: String, src: String) {
         match cmd.as_ref() {
             "connect" => self.connect_player(src, socket),
             "update" => self.update_player(src, args, socket),
+            "disconnect" => self.disconnect_player(src, socket),
             _ => println!("oi"),
         }
     }
@@ -114,10 +122,10 @@ impl Player {
 
     pub fn move_player(&mut self, direction: String) {
         match direction.as_str() {
-            "up" => self.xy.y -= 5,
-            "down" => self.xy.y += 5,
-            "left" => self.xy.x -= 5,
-            "right" => self.xy.x += 5,
+            "up" => self.xy.y -= 1,
+            "down" => self.xy.y += 1,
+            "left" => self.xy.x -= 1,
+            "right" => self.xy.x += 1,
             _ => println!("Неверное направление"),
         }
     }
